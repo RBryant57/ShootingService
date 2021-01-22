@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class BrassesController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public BrassesController(ShootingContext context)
         {
-            _context = context;
+            _data = new BrassData(context);
         }
 
         // GET: api/Brasses
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Brass>>> GetBrass()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetBrass()
         {
-            return await _context.Brass.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Brass>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Brass)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Brasses/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Brass>> GetBrass(int id)
+        public async Task<ActionResult<IEntity>> GetBrass(int id)
         {
-            var brass = await _context.Brass.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (brass == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return brass;
+            return (Brass)entity;
         }
 
         // PUT: api/Brasses/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutBrass(int id, Brass brass)
+        public async Task<IActionResult> PutBrass(int id, Brass entity)
         {
-            if (id != brass.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Brass id does not match the brass to be updated.");
             }
-
-            _context.Entry(brass).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!BrassExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Brass>> PostBrass(Brass brass)
+        public async Task<ActionResult<IEntity>> PostBrass(Brass entity)
         {
-            _context.Brass.Add(brass);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetBrass", new { id = brass.Id }, brass);
+            return CreatedAtAction("GetBrass", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Brasses/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Brass>> DeleteBrass(int id)
+        public async Task<ActionResult<IEntity>> DeleteBrass(int id)
         {
-            var brass = await _context.Brass.FindAsync(id);
-            if (brass == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Brass.Remove(brass);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return brass;
-        }
-
-        private bool BrassExists(int id)
-        {
-            return _context.Brass.Any(e => e.Id == id);
+            return (Brass)entity;
         }
     }
 }

@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class GunTypesController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public GunTypesController(ShootingContext context)
         {
-            _context = context;
+            _data = new GunTypeData(context);
         }
 
         // GET: api/GunTypes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<GunType>>> GetGunType()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetGunType()
         {
-            return await _context.GunType.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<GunType>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((GunType)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/GunTypes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<GunType>> GetGunType(int id)
+        public async Task<ActionResult<IEntity>> GetGunType(int id)
         {
-            var gunType = await _context.GunType.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (gunType == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return gunType;
+            return (GunType)entity;
         }
 
         // PUT: api/GunTypes/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutGunType(int id, GunType gunType)
+        public async Task<IActionResult> PutGunType(int id, GunType entity)
         {
-            if (id != gunType.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Gun type id does not match the gun type to be updated.");
             }
-
-            _context.Entry(gunType).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!GunTypeExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<GunType>> PostGunType(GunType gunType)
+        public async Task<ActionResult<IEntity>> PostGunType(GunType entity)
         {
-            _context.GunType.Add(gunType);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetGunType", new { id = gunType.Id }, gunType);
+            return CreatedAtAction("GetGunType", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/GunTypes/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<GunType>> DeleteGunType(int id)
+        public async Task<ActionResult<IEntity>> DeleteGunType(int id)
         {
-            var gunType = await _context.GunType.FindAsync(id);
-            if (gunType == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.GunType.Remove(gunType);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return gunType;
-        }
-
-        private bool GunTypeExists(int id)
-        {
-            return _context.GunType.Any(e => e.Id == id);
+            return (GunType)entity;
         }
     }
 }

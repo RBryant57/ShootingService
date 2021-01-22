@@ -4,7 +4,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using EntityLayer.Contexts;
 
 namespace ShootingService
 {
@@ -22,6 +23,7 @@ namespace ShootingService
         {
             services.AddDbContext<ShootingContext>(opt => opt.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
             services.AddControllers();
+            services.AddCors();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -42,6 +44,8 @@ namespace ShootingService
             {
                 endpoints.MapControllers();
             });
+
+            app.UseCors(builder => builder.WithOrigins("*"));
         }
     }
 }

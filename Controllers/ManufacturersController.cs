@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class ManufacturersController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public ManufacturersController(ShootingContext context)
         {
-            _context = context;
+            _data = new ManufacturerData(context);
         }
 
         // GET: api/Manufacturers
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Manufacturer>>> GetManufacturer()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetManufacturer()
         {
-            return await _context.Manufacturer.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Manufacturer>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Manufacturer)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Manufacturers/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Manufacturer>> GetManufacturer(int id)
+        public async Task<ActionResult<IEntity>> GetManufacturer(int id)
         {
-            var manufacturer = await _context.Manufacturer.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (manufacturer == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return manufacturer;
+            return (Manufacturer)entity;
         }
 
         // PUT: api/Manufacturers/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutManufacturer(int id, Manufacturer manufacturer)
+        public async Task<IActionResult> PutManufacturer(int id, Manufacturer entity)
         {
-            if (id != manufacturer.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Manufacturer id does not match the manufacturer to be updated.");
             }
-
-            _context.Entry(manufacturer).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!ManufacturerExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Manufacturer>> PostManufacturer(Manufacturer manufacturer)
+        public async Task<ActionResult<IEntity>> PostManufacturer(Manufacturer entity)
         {
-            _context.Manufacturer.Add(manufacturer);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetManufacturer", new { id = manufacturer.Id }, manufacturer);
+            return CreatedAtAction("GetManufacturer", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Manufacturers/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Manufacturer>> DeleteManufacturer(int id)
+        public async Task<ActionResult<IEntity>> DeleteManufacturer(int id)
         {
-            var manufacturer = await _context.Manufacturer.FindAsync(id);
-            if (manufacturer == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Manufacturer.Remove(manufacturer);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return manufacturer;
-        }
-
-        private bool ManufacturerExists(int id)
-        {
-            return _context.Manufacturer.Any(e => e.Id == id);
+            return (Manufacturer)entity;
         }
     }
 }

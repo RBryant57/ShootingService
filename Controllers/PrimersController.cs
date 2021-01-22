@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class PrimersController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public PrimersController(ShootingContext context)
         {
-            _context = context;
+            _data = new PrimerData(context);
         }
 
         // GET: api/Primers
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Primer>>> GetPrimer()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetPrimer()
         {
-            return await _context.Primer.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Primer>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Primer)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Primers/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Primer>> GetPrimer(int id)
+        public async Task<ActionResult<IEntity>> GetPrimer(int id)
         {
-            var primer = await _context.Primer.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (primer == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return primer;
+            return (Primer)entity;
         }
 
         // PUT: api/Primers/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPrimer(int id, Primer primer)
+        public async Task<IActionResult> PutPrimer(int id, Primer entity)
         {
-            if (id != primer.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Primer id does not match the primer to be updated.");
             }
-
-            _context.Entry(primer).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!PrimerExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Primer>> PostPrimer(Primer primer)
+        public async Task<ActionResult<IEntity>> PostPrimer(Primer entity)
         {
-            _context.Primer.Add(primer);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetPrimer", new { id = primer.Id }, primer);
+            return CreatedAtAction("GetPrimer", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Primers/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Primer>> DeletePrimer(int id)
+        public async Task<ActionResult<IEntity>> DeletePrimer(int id)
         {
-            var primer = await _context.Primer.FindAsync(id);
-            if (primer == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Primer.Remove(primer);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return primer;
-        }
-
-        private bool PrimerExists(int id)
-        {
-            return _context.Primer.Any(e => e.Id == id);
+            return (Primer)entity;
         }
     }
 }

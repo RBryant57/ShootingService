@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class ShootingSessionsController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public ShootingSessionsController(ShootingContext context)
         {
-            _context = context;
+            _data = new ShootingSessionData(context);
         }
 
         // GET: api/ShootingSessions
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ShootingSession>>> GetShootingSession()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetShootingSession()
         {
-            return await _context.ShootingSession.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<ShootingSession>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((ShootingSession)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/ShootingSessions/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<ShootingSession>> GetShootingSession(int id)
+        public async Task<ActionResult<IEntity>> GetShootingSession(int id)
         {
-            var shootingSession = await _context.ShootingSession.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (shootingSession == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return shootingSession;
+            return (ShootingSession)entity;
         }
 
         // PUT: api/ShootingSessions/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutShootingSession(int id, ShootingSession shootingSession)
+        public async Task<IActionResult> PutShootingSession(int id, ShootingSession entity)
         {
-            if (id != shootingSession.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Shooting session id does not match the shooting session to be updated.");
             }
-
-            _context.Entry(shootingSession).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!ShootingSessionExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<ShootingSession>> PostShootingSession(ShootingSession shootingSession)
+        public async Task<ActionResult<IEntity>> PostShootingSession(ShootingSession entity)
         {
-            _context.ShootingSession.Add(shootingSession);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetShootingSession", new { id = shootingSession.Id }, shootingSession);
+            return CreatedAtAction("GetShootingSession", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/ShootingSessions/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<ShootingSession>> DeleteShootingSession(int id)
+        public async Task<ActionResult<IEntity>> DeleteShootingSession(int id)
         {
-            var shootingSession = await _context.ShootingSession.FindAsync(id);
-            if (shootingSession == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.ShootingSession.Remove(shootingSession);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return shootingSession;
-        }
-
-        private bool ShootingSessionExists(int id)
-        {
-            return _context.ShootingSession.Any(e => e.Id == id);
+            return (ShootingSession)entity;
         }
     }
 }

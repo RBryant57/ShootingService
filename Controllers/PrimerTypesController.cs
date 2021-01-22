@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class PrimerTypesController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public PrimerTypesController(ShootingContext context)
         {
-            _context = context;
+            _data = new PrimerTypeData(context);
         }
 
         // GET: api/PrimerTypes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PrimerType>>> GetPrimerType()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetPrimerType()
         {
-            return await _context.PrimerType.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<PrimerType>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((PrimerType)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/PrimerTypes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<PrimerType>> GetPrimerType(int id)
+        public async Task<ActionResult<IEntity>> GetPrimerType(int id)
         {
-            var primerType = await _context.PrimerType.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (primerType == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return primerType;
+            return (PrimerType)entity;
         }
 
         // PUT: api/PrimerTypes/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPrimerType(int id, PrimerType primerType)
+        public async Task<IActionResult> PutPrimerType(int id, PrimerType entity)
         {
-            if (id != primerType.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Primer type id does not match the primer type to be updated.");
             }
-
-            _context.Entry(primerType).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!PrimerTypeExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<PrimerType>> PostPrimerType(PrimerType primerType)
+        public async Task<ActionResult<IEntity>> PostPrimerType(PrimerType entity)
         {
-            _context.PrimerType.Add(primerType);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetPrimerType", new { id = primerType.Id }, primerType);
+            return CreatedAtAction("GetPrimerType", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/PrimerTypes/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<PrimerType>> DeletePrimerType(int id)
+        public async Task<ActionResult<IEntity>> DeletePrimerType(int id)
         {
-            var primerType = await _context.PrimerType.FindAsync(id);
-            if (primerType == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.PrimerType.Remove(primerType);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return primerType;
-        }
-
-        private bool PrimerTypeExists(int id)
-        {
-            return _context.PrimerType.Any(e => e.Id == id);
+            return (PrimerType)entity;
         }
     }
 }

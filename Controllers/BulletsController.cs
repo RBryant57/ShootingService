@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class BulletsController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public BulletsController(ShootingContext context)
         {
-            _context = context;
+            _data = new BulletData(context);
         }
 
         // GET: api/Bullets
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Bullet>>> GetBullet()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetBullet()
         {
-            return await _context.Bullet.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Bullet>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Bullet)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Bullets/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Bullet>> GetBullet(int id)
+        public async Task<ActionResult<IEntity>> GetBullet(int id)
         {
-            var bullet = await _context.Bullet.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (bullet == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return bullet;
+            return (Bullet)entity;
         }
 
         // PUT: api/Bullets/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutBullet(int id, Bullet bullet)
+        public async Task<IActionResult> PutBullet(int id, Bullet entity)
         {
-            if (id != bullet.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Bullet id does not match the bullet to be updated.");
             }
-
-            _context.Entry(bullet).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!BulletExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Bullet>> PostBullet(Bullet bullet)
+        public async Task<ActionResult<IEntity>> PostBullet(Bullet entity)
         {
-            _context.Bullet.Add(bullet);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetBullet", new { id = bullet.Id }, bullet);
+            return CreatedAtAction("GetBullet", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Bullets/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Bullet>> DeleteBullet(int id)
+        public async Task<ActionResult<IEntity>> DeleteBullet(int id)
         {
-            var bullet = await _context.Bullet.FindAsync(id);
-            if (bullet == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Bullet.Remove(bullet);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return bullet;
-        }
-
-        private bool BulletExists(int id)
-        {
-            return _context.Bullet.Any(e => e.Id == id);
+            return (Bullet)entity;
         }
     }
 }

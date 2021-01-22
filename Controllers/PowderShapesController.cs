@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class PowderShapesController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public PowderShapesController(ShootingContext context)
         {
-            _context = context;
+            _data = new PowderShapeData(context);
         }
 
         // GET: api/PowderShapes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PowderShape>>> GetPowderShape()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetPowderShape()
         {
-            return await _context.PowderShape.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<PowderShape>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((PowderShape)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/PowderShapes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<PowderShape>> GetPowderShape(int id)
+        public async Task<ActionResult<IEntity>> GetPowderShape(int id)
         {
-            var powderShape = await _context.PowderShape.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (powderShape == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return powderShape;
+            return (PowderShape)entity;
         }
 
         // PUT: api/PowderShapes/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPowderShape(int id, PowderShape powderShape)
+        public async Task<IActionResult> PutPowderShape(int id, PowderShape entity)
         {
-            if (id != powderShape.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Powder shape id does not match the powder shape to be updated.");
             }
-
-            _context.Entry(powderShape).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!PowderShapeExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<PowderShape>> PostPowderShape(PowderShape powderShape)
+        public async Task<ActionResult<IEntity>> PostPowderShape(PowderShape entity)
         {
-            _context.PowderShape.Add(powderShape);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetPowderShape", new { id = powderShape.Id }, powderShape);
+            return CreatedAtAction("GetPowderShape", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/PowderShapes/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<PowderShape>> DeletePowderShape(int id)
+        public async Task<ActionResult<IEntity>> DeletePowderShape(int id)
         {
-            var powderShape = await _context.PowderShape.FindAsync(id);
-            if (powderShape == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.PowderShape.Remove(powderShape);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return powderShape;
-        }
-
-        private bool PowderShapeExists(int id)
-        {
-            return _context.PowderShape.Any(e => e.Id == id);
+            return (PowderShape)entity;
         }
     }
 }

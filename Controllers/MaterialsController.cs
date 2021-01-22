@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class MaterialsController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public MaterialsController(ShootingContext context)
         {
-            _context = context;
+            _data = new MaterialData(context);
         }
 
         // GET: api/Materials
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Material>>> GetMaterial()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetMaterial()
         {
-            return await _context.Material.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Material>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Material)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Materials/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Material>> GetMaterial(int id)
+        public async Task<ActionResult<IEntity>> GetMaterial(int id)
         {
-            var material = await _context.Material.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (material == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return material;
+            return (Material)entity;
         }
 
         // PUT: api/Materials/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutMaterial(int id, Material material)
+        public async Task<IActionResult> PutMaterial(int id, Material entity)
         {
-            if (id != material.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Material id does not match the material to be updated.");
             }
-
-            _context.Entry(material).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!MaterialExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Material>> PostMaterial(Material material)
+        public async Task<ActionResult<IEntity>> PostMaterial(Material entity)
         {
-            _context.Material.Add(material);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetMaterial", new { id = material.Id }, material);
+            return CreatedAtAction("GetMaterial", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Materials/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Material>> DeleteMaterial(int id)
+        public async Task<ActionResult<IEntity>> DeleteMaterial(int id)
         {
-            var material = await _context.Material.FindAsync(id);
-            if (material == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Material.Remove(material);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return material;
-        }
-
-        private bool MaterialExists(int id)
-        {
-            return _context.Material.Any(e => e.Id == id);
+            return (Material)entity;
         }
     }
 }

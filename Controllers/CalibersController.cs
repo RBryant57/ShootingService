@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class CalibersController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public CalibersController(ShootingContext context)
         {
-            _context = context;
+            _data = new CaliberData(context);
         }
 
         // GET: api/Calibers
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Caliber>>> GetCaliber()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetCaliber()
         {
-            return await _context.Caliber.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Caliber>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Caliber)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Calibers/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Caliber>> GetCaliber(int id)
+        public async Task<ActionResult<IEntity>> GetCaliber(int id)
         {
-            var caliber = await _context.Caliber.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (caliber == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return caliber;
+            return (Caliber)entity;
         }
 
         // PUT: api/Calibers/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutCaliber(int id, Caliber caliber)
+        public async Task<IActionResult> PutCaliber(int id, Caliber entity)
         {
-            if (id != caliber.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Caliber id does not match the caliber to be updated.");
             }
-
-            _context.Entry(caliber).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!CaliberExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Caliber>> PostCaliber(Caliber caliber)
+        public async Task<ActionResult<IEntity>> PostCaliber(Caliber entity)
         {
-            Caliber cal = new Caliber();
-            await caliber.AddCaliber(cal, _context);
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetCaliber", new { id = caliber.Id }, caliber);
+            return CreatedAtAction("GetCaliber", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Calibers/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Caliber>> DeleteCaliber(int id)
+        public async Task<ActionResult<IEntity>> DeleteCaliber(int id)
         {
-            var caliber = await _context.Caliber.FindAsync(id);
-            if (caliber == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Caliber.Remove(caliber);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return caliber;
-        }
-
-        private bool CaliberExists(int id)
-        {
-            return _context.Caliber.Any(e => e.Id == id);
+            return (Caliber)entity;
         }
     }
 }

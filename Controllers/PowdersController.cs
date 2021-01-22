@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShootingService.Models;
+
+using DataLayer.Data;
+using DataLayer.Interfaces;
+using EntityLayer.Contexts;
+using EntityLayer.Interfaces;
+using EntityLayer.Models;
 
 namespace ShootingService.Controllers
 {
@@ -13,61 +18,56 @@ namespace ShootingService.Controllers
     [ApiController]
     public class PowdersController : ControllerBase
     {
-        private readonly ShootingContext _context;
+        private IData _data;
 
         public PowdersController(ShootingContext context)
         {
-            _context = context;
+            _data = new PowderData(context);
         }
 
         // GET: api/Powders
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Powder>>> GetPowder()
+        public async Task<ActionResult<IEnumerable<IEntity>>> GetPowder()
         {
-            return await _context.Powder.ToListAsync();
+            var entities = await _data.Get();
+            var returnEntities = new List<Powder>();
+            entities.ForEach(delegate (IEntity entity) { returnEntities.Add((Powder)entity); });
+
+            return returnEntities;
         }
 
         // GET: api/Powders/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Powder>> GetPowder(int id)
+        public async Task<ActionResult<IEntity>> GetPowder(int id)
         {
-            var powder = await _context.Powder.FindAsync(id);
+            var entity = await _data.Get(id);
 
-            if (powder == null)
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            return powder;
+            return (Powder)entity;
         }
 
         // PUT: api/Powders/5
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPowder(int id, Powder powder)
+        public async Task<IActionResult> PutPowder(int id, Powder entity)
         {
-            if (id != powder.Id)
+            if (id != entity.Id)
             {
-                return BadRequest();
+                return BadRequest("Powder id does not match the powder to be updated.");
             }
-
-            _context.Entry(powder).State = EntityState.Modified;
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _data.Update(id, entity);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (ArgumentException)
             {
-                if (!PowderExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return NotFound();
             }
 
             return NoContent();
@@ -77,33 +77,29 @@ namespace ShootingService.Controllers
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost]
-        public async Task<ActionResult<Powder>> PostPowder(Powder powder)
+        public async Task<ActionResult<IEntity>> PostPowder(Powder entity)
         {
-            _context.Powder.Add(powder);
-            await _context.SaveChangesAsync();
+            var newEntity = await _data.Add(entity);
 
-            return CreatedAtAction("GetPowder", new { id = powder.Id }, powder);
+            return CreatedAtAction("GetPowder", new { id = newEntity.Id }, newEntity);
         }
 
         // DELETE: api/Powders/5
         [HttpDelete("{id}")]
-        public async Task<ActionResult<Powder>> DeletePowder(int id)
+        public async Task<ActionResult<IEntity>> DeletePowder(int id)
         {
-            var powder = await _context.Powder.FindAsync(id);
-            if (powder == null)
+            return NotFound();
+
+            // Deleting will be implemented later.
+            var entity = await _data.Get(id);
+            if (entity == null)
             {
                 return NotFound();
             }
 
-            _context.Powder.Remove(powder);
-            await _context.SaveChangesAsync();
+            await _data.Delete(entity.Id);
 
-            return powder;
-        }
-
-        private bool PowderExists(int id)
-        {
-            return _context.Powder.Any(e => e.Id == id);
+            return (Powder)entity;
         }
     }
 }
