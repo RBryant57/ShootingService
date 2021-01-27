@@ -43,7 +43,7 @@ namespace DataLayer.Data
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!_context.Brass.Any(e => e.Id == id))
+                if (!_context.BulletType.Any(e => e.Id == id))
                 {
                     throw new ArgumentException(ENTITY_MISSING);
                 }
